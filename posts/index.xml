@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on plasticine-boy空间</title>
+    <link>https://example.com/posts/</link>
+    <description>Recent content in Posts on plasticine-boy空间</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh</language>
+    <lastBuildDate>Sun, 29 Jan 2023 02:02:01 +0800</lastBuildDate><atom:link href="https://example.com/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>定制hugo主题01——极简版</title>
+      <link>https://example.com/posts/diy-theme-day-01/</link>
+      <pubDate>Sun, 29 Jan 2023 02:02:01 +0800</pubDate>
+      
+      <guid>https://example.com/posts/diy-theme-day-01/</guid>
+      <description>用别人写的theme很依赖对方的文档写清楚，并且自己想做点定制化的东西又有点困难。如有此类需求的话，我觉得自己定制主题起来会更简单清晰。
+另外希望自己在diy的过程能把hugo的架构、接口设计理清楚其中逻辑，最好还能沉淀一些common的主题定制能力/方法，这样也能方便其他想定制主题的人。
+一行命令建主题 hugo对自定义主题已经给了支持，很方便拥有自己的主题。但new完之后发现只有themes/diy/layouts/_default/baseof.html有内容，其他文件都需要自己写。
+参考文档：https://gohugo.io/commands/hugo_new_theme/
+➜ my-blog git:(master) ✗ hugo new theme diy ➜ my-blog git:(master) ✗ cd themes ➜ themes git:(master) ✗ tree . └── diy ├── LICENSE ├── archetypes │ └── default.md ├── layouts │ ├── 404.html │ ├── _default │ │ ├── baseof.html │ │ ├── list.html │ │ └── single.html │ ├── index.html │ └── partials │ ├── footer.html │ ├── head.html │ └── header.html ├── static │ ├── css │ └── js └── theme.</description>
+    </item>
+    
+    <item>
+      <title>无刻度容器倒水问题</title>
+      <link>https://example.com/posts/%E6%97%A0%E5%88%BB%E5%BA%A6%E5%AE%B9%E5%99%A8%E5%80%92%E6%B0%B4%E9%97%AE%E9%A2%98/</link>
+      <pubDate>Tue, 24 Jan 2023 05:06:27 +0800</pubDate>
+      
+      <guid>https://example.com/posts/%E6%97%A0%E5%88%BB%E5%BA%A6%E5%AE%B9%E5%99%A8%E5%80%92%E6%B0%B4%E9%97%AE%E9%A2%98/</guid>
+      <description>问题背景 往年春节都太多计划、太多想做的事情，结果都是各种懊恼……今年春节打算静下来心做一点很小很小的事情。 忽然想起2016年5、6月份找实习时，被问到的一个“智力题”：
+有三个无刻度的容器，一个10L装满水，另外两个是空的，容积分别是3L、7L，问如何得到各5L的水？
+因为当时大三，刚好学过人工智能、搜索算法这些，当时第一想法就是，这不直接搜一遍就好嘛，倒水就是个“状态转移”的过程。但说出来好像电话那头不太满意，让我说确切的答案……只能硬着头皮算，磕磕碰碰还是给出了答案：
+10、3、7，要平分成5，关键是能够凑出一个2。然后……灵光一闪，3*3-7不就是2吗（这里大概靠数字敏感直觉之类的吧），然后就说10往3里倒满、3再往7里倒，重复到第3次时，3L的容器里就剩2L的水了，然后答案显然可得。
+今天想把那个正式的搜索思路给实现一下，算是close掉这个事情，顺便也开启独立站点的第一篇正式博客。
+温馨提示：阅读以下内容要求你至少具备这些知识——
+宽度优先搜索算法 队列/栈/树等基础数据结构 C++编程基础 抽象一下问题 给定初始状态S0、目标状态SN，求(最短)路径。
+举个例子，初始状态为(10L, 0L, 0L)，如果10L往3L容器里倒满水，则状态变成(7L, 3L, 0L)，两者之间有一条路径。
+状态该如何表示？ 像上述例子，如果只用“当前装水的量”来表示状态的话，会丢失容积信息，导致状态转移时没法计算“谁可以往谁倒多少”，所以单个容器的状态表示应该为：
+// state.h // 单个容器的状态 struct ContainerState { int volume; // 容器本身的固有容积 int water_volume; // 容器当前储水的体积 }; 而搜索树上单个结点的状态，由M个容器组成，其中M可能大于3个，可以用一个数组来表示：
+// state.h // 单个结点的状态 struct NodeState { std::vector&amp;lt;ContainerState&amp;gt; states; }; 进而，整个问题求解可以这样子表示：
+// solution.cpp #include &amp;#34;state.h&amp;#34; void Solve(const NodeState&amp;amp; start, const NodeState&amp;amp; target); int main() { NodeState start{.states = {{10, 10}, {7, 0}, {3, 0}}}; NodeState target{.</description>
+    </item>
+    
+  </channel>
+</rss>

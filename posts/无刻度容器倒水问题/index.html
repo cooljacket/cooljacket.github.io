@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html><link rel="stylesheet" type="text/css" href="/css/vue.css"><body><div id="content">
+<main>
+    <article>
+    <header>
+        <h1>无刻度容器倒水问题</h1>
+    </header>
+    <aside>
+        <nav id="TableOfContents">
+  <ul>
+    <li><a href="#问题背景">问题背景</a></li>
+    <li><a href="#抽象一下问题">抽象一下问题</a>
+      <ul>
+        <li><a href="#状态该如何表示">状态该如何表示？</a></li>
+      </ul>
+    </li>
+    <li><a href="#分解问题">分解问题</a>
+      <ul>
+        <li><a href="#搭搜索过程的代码框架">搭搜索过程的代码框架</a></li>
+        <li><a href="#如何转移状态">如何转移状态？</a></li>
+        <li><a href="#如何判定是否为目标状态">如何判定是否为目标状态？</a></li>
+        <li><a href="#如何判断结点是否重复">如何判断结点是否重复？</a></li>
+        <li><a href="#如何打印转移路径">如何打印转移路径？</a></li>
+      </ul>
+    </li>
+    <li><a href="#测试验证">测试验证</a></li>
+    <li><a href="#结语">结语</a></li>
+    <li><a href="#附录-完整代码">附录-完整代码</a></li>
+  </ul>
+</nav>
+    </aside>
+        <h1 id="问题背景">问题背景</h1>
+<p>往年春节都太多计划、太多想做的事情，结果都是各种懊恼……今年春节打算静下来心做一点很小很小的事情。
+忽然想起2016年5、6月份找实习时，被问到的一个“智力题”：</p>
+<blockquote>
+<p>有三个无刻度的容器，一个10L装满水，另外两个是空的，容积分别是3L、7L，问如何得到各5L的水？</p>
+</blockquote>
+<p>因为当时大三，刚好学过人工智能、搜索算法这些，当时第一想法就是，这不直接搜一遍就好嘛，倒水就是个“状态转移”的过程。但说出来好像电话那头不太满意，让我说确切的答案……只能硬着头皮算，磕磕碰碰还是给出了答案：</p>
+<blockquote>
+<p>10、3、7，要平分成5，关键是能够凑出一个2。然后……灵光一闪，3*3-7不就是2吗（这里大概靠数字敏感直觉之类的吧），然后就说10往3里倒满、3再往7里倒，重复到第3次时，3L的容器里就剩2L的水了，然后答案显然可得。</p>
+</blockquote>
+<p>今天想把那个正式的搜索思路给实现一下，算是close掉这个事情，顺便也开启独立站点的第一篇正式博客。</p>
+<p>温馨提示：阅读以下内容要求你至少具备这些知识——</p>
+<ul>
+<li>宽度优先搜索算法</li>
+<li>队列/栈/树等基础数据结构</li>
+<li>C++编程基础</li>
+</ul>
+<h1 id="抽象一下问题">抽象一下问题</h1>
+<p>给定初始状态S0、目标状态SN，求(最短)路径。</p>
+<p>举个例子，初始状态为(10L, 0L, 0L)，如果10L往3L容器里倒满水，则状态变成(7L, 3L, 0L)，两者之间有一条路径。</p>
+<h2 id="状态该如何表示">状态该如何表示？</h2>
+<p>像上述例子，如果只用“当前装水的量”来表示状态的话，会丢失容积信息，导致状态转移时没法计算“谁可以往谁倒多少”，所以单个容器的状态表示应该为：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// state.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个容器的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">ContainerState</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> volume;        <span style="color:#75715e">// 容器本身的固有容积
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> water_volume;  <span style="color:#75715e">// 容器当前储水的体积
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span></code></pre></div><p>而搜索树上单个结点的状态，由M个容器组成，其中M可能大于3个，可以用一个数组来表示：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// state.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个结点的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">NodeState</span> {
+</span></span><span style="display:flex;"><span>  std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>ContainerState<span style="color:#f92672">&gt;</span> states;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>进而，整个问题求解可以这样子表示：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// solution.cpp
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">#include</span> <span style="color:#75715e">&#34;state.h&#34;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>  NodeState start{.states <span style="color:#f92672">=</span> {{<span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">10</span>}, {<span style="color:#ae81ff">7</span>, <span style="color:#ae81ff">0</span>}, {<span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">0</span>}}};
+</span></span><span style="display:flex;"><span>  NodeState target{.states <span style="color:#f92672">=</span> {{<span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">5</span>}, {<span style="color:#ae81ff">7</span>, <span style="color:#ae81ff">5</span>}, {<span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">0</span>}}};
+</span></span><span style="display:flex;"><span>  Solve(start, target);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// TODO: 实现搜索过程
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>}
+</span></span></code></pre></div><h1 id="分解问题">分解问题</h1>
+<h2 id="搭搜索过程的代码框架">搭搜索过程的代码框架</h2>
+<p>首先，搜索算法选择，这里打算选用BFS而非DFS，因为：BFS可以高效率地找到最优解（如果有）。</p>
+<p>典型的BFS搜索框架为：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 1、根据初始状态来初始化队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    queue<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> state_queue;
+</span></span><span style="display:flex;"><span>    state_queue.push(start);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2、出队、尝试转移到新的结点
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>state_queue.empty()) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.1、出队
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        NodeState curr_state <span style="color:#f92672">=</span> state_queue.front();
+</span></span><span style="display:flex;"><span>        state_queue.pop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.2、尝试转移状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.3、判断是否转移到目标状态了，是则可以退出了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.4、判断新结点是否重复，不重复才允许加入队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 3、队列出空还未找到有效路径，则判定为无解
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;No solution...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="如何转移状态">如何转移状态？</h2>
+<p>在这个问题里，由于容器是无刻度的，所以合法的倒水方式只能是这两种：</p>
+<ul>
+<li>从A倒给B，直到B已满；</li>
+<li>从A倒给B，直到A没水了。</li>
+</ul>
+<p>那A和B分别可以是谁呢？还是以三个容器ABC为例，可能的倒水排列组合为：A-&gt;B, A-&gt;C, B-&gt;A, B-&gt;C, C-&gt;A, C-&gt;B。
+其实就是所有容器里选两个的排列，那状态转移过程就容易写了。最笨的方法就是两重循环，枚举排列：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 1、根据初始状态来初始化队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  queue<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> state_queue;
+</span></span><span style="display:flex;"><span>  state_queue.push(start);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 2、出队、尝试转移到新的结点
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>state_queue.empty()) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.1、出队
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    NodeState curr_state <span style="color:#f92672">=</span> state_queue.front();
+</span></span><span style="display:flex;"><span>    state_queue.pop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.2、尝试转移状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">for</span> (size_t j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>j) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> j) <span style="color:#66d9ef">continue</span>;                                <span style="color:#75715e">// 自己不能倒给自己
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> self_water <span style="color:#f92672">=</span> curr_state.states[i].water_volume;  <span style="color:#75715e">// 自身有的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> can_accept_water <span style="color:#f92672">=</span> curr_state.states[j].volume <span style="color:#f92672">-</span> curr_state.states[j].water_volume;  <span style="color:#75715e">// 对方可接收的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> poll_water <span style="color:#f92672">=</span> min(self_water, can_accept_water);                                      <span style="color:#75715e">// 本次可倒的水
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (poll_water <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        NodeState new_state <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>        new_state.states[i].water_volume <span style="color:#f92672">-=</span> poll_water;
+</span></span><span style="display:flex;"><span>        new_state.states[j].water_volume <span style="color:#f92672">+=</span> poll_water;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.3、判断是否转移到目标状态了，是则可以退出了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.4、判断新结点是否重复，不重复才允许加入队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 3、队列出空还未找到有效路径，则判定为无解
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;No solution...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="如何判定是否为目标状态">如何判定是否为目标状态？</h2>
+<p>这个最简单的，就依次判断各个容器的水量跟目标状态的是否一致即可。考虑这个是NodeState本身的比较逻辑，所以写成NodeState的方法会更合适，在C++里则还可以重载一下==符号，更加直观易懂。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// state.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个结点的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 温馨提示：这里用了assert是会导致程序直接退出的。若是线上服务，最好用可降级的报错方式。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">NodeState</span> {
+</span></span><span style="display:flex;"><span>  std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>ContainerState<span style="color:#f92672">&gt;</span> states;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">bool</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">==</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> other) <span style="color:#66d9ef">const</span> {
+</span></span><span style="display:flex;"><span>    assert(states.size() <span style="color:#f92672">==</span> other.states.size());  <span style="color:#75715e">// 限制结点的容器数量必须相等，才允许比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      assert(states[i].volume <span style="color:#f92672">==</span> other.states[i].volume);  <span style="color:#75715e">// 限制容积相等的容器对齐比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (states[i].water_volume <span style="color:#f92672">!=</span> other.states[i].water_volume) <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> true;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><h2 id="如何判断结点是否重复">如何判断结点是否重复？</h2>
+<p>最简单的就是把所有<strong>入过</strong>队列的结点放到一个集合里，然后查找判重即可。
+考虑到后边还要复原整个转移路径，所以这里选择用map来存放状态转移记录，而非用set。</p>
+<p>注意map内部会对元素做大小比较的，但由于NodeState是自定义的类型，STL判断大小时，不知道该怎么办……所以还需要指定其<code>operator&lt;</code>的行为：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// state.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个结点的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 温馨提示：这里用了assert是会导致程序直接退出的。若是线上服务，最好用可降级的报错方式。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">NodeState</span> {
+</span></span><span style="display:flex;"><span>  std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>ContainerState<span style="color:#f92672">&gt;</span> states;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">bool</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">==</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> other) <span style="color:#66d9ef">const</span> {
+</span></span><span style="display:flex;"><span>    assert(states.size() <span style="color:#f92672">==</span> other.states.size());  <span style="color:#75715e">// 限制结点的容器数量必须相等，才允许比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      assert(states[i].volume <span style="color:#f92672">==</span> other.states[i].volume);  <span style="color:#75715e">// 限制容积相等的容器对齐比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (states[i].water_volume <span style="color:#f92672">!=</span> other.states[i].water_volume) <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> true;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">bool</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">&lt;</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> other) <span style="color:#66d9ef">const</span> {
+</span></span><span style="display:flex;"><span>    assert(states.size() <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>);                     <span style="color:#75715e">// 限制非空状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    assert(states.size() <span style="color:#f92672">==</span> other.states.size());  <span style="color:#75715e">// 限制结点的容器数量必须相等，才允许比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      assert(states[i].volume <span style="color:#f92672">==</span> other.states[i].volume);  <span style="color:#75715e">// 限制容积相等的容器对齐比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (states[i].water_volume <span style="color:#f92672">!=</span> other.states[i].water_volume) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> states[i].water_volume <span style="color:#f92672">&lt;</span> other.states[i].water_volume;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// solution.cpp
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 1、根据初始状态来初始化队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  queue<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> state_queue;
+</span></span><span style="display:flex;"><span>  state_queue.push(start);
+</span></span><span style="display:flex;"><span>  map<span style="color:#f92672">&lt;</span>NodeState, NodeState<span style="color:#f92672">&gt;</span> visit_records;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 2、出队、尝试转移到新的结点
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>state_queue.empty()) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.1、出队
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    NodeState curr_state <span style="color:#f92672">=</span> state_queue.front();
+</span></span><span style="display:flex;"><span>    state_queue.pop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.2、尝试转移状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">for</span> (size_t j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>j) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> j) <span style="color:#66d9ef">continue</span>;                                <span style="color:#75715e">// 自己不能倒给自己
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> self_water <span style="color:#f92672">=</span> curr_state.states[i].water_volume;  <span style="color:#75715e">// 自身有的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> can_accept_water <span style="color:#f92672">=</span> curr_state.states[j].volume <span style="color:#f92672">-</span> curr_state.states[j].water_volume;  <span style="color:#75715e">// 对方可接收的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> poll_water <span style="color:#f92672">=</span> min(self_water, can_accept_water);                                      <span style="color:#75715e">// 本次可倒的水
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (poll_water <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        NodeState new_state <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>        new_state.states[i].water_volume <span style="color:#f92672">-=</span> poll_water;
+</span></span><span style="display:flex;"><span>        new_state.states[j].water_volume <span style="color:#f92672">+=</span> poll_water;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.3、判断是否转移到目标状态了，是则可以退出了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (new_state <span style="color:#f92672">==</span> target) {
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// TODO: 打印转移路径
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.4、判断新结点是否重复，不重复才允许加入队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (visit_records.find(new_state) <span style="color:#f92672">==</span> visit_records.end()) {
+</span></span><span style="display:flex;"><span>          visit_records[new_state] <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>          state_queue.push(new_state);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 3、队列出空还未找到有效路径，则判定为无解
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;No solution...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="如何打印转移路径">如何打印转移路径？</h2>
+<p>状态从A到B转移的过程，我们记录的是B-&gt;A的映射，方向是相反的，所以需要有一个反推的过程，用栈或数组记录一下，然后按反推后的顺序输出即可：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">PrintSolution</span>(<span style="color:#66d9ef">const</span> map<span style="color:#f92672">&lt;</span>NodeState, NodeState<span style="color:#f92672">&gt;&amp;</span> visit_records, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>    NodeState curr_state <span style="color:#f92672">=</span> target;
+</span></span><span style="display:flex;"><span>    stack<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> solution;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>(curr_state <span style="color:#f92672">==</span> start)) {
+</span></span><span style="display:flex;"><span>        solution.push(curr_state);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">auto</span> iter <span style="color:#f92672">=</span> visit_records.find(curr_state);
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 注：这里一定能反推回去，除非代码写错了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (iter <span style="color:#f92672">==</span> visit_records.end()) {
+</span></span><span style="display:flex;"><span>            cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;backtrace solution fail, your code is wrong...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>            exit(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            curr_state <span style="color:#f92672">=</span> iter<span style="color:#f92672">-&gt;</span>second;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;Found out solution:&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>solution.empty()) {
+</span></span><span style="display:flex;"><span>        cout <span style="color:#f92672">&lt;&lt;</span> solution.top() <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>        solution.pop();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 id="测试验证">测试验证</h1>
+<p>程序能跑起来，也能就这个case输出正确的结果，但真的写对了吗？写完整了吗？这些问题留给读者继续思考哈。</p>
+<h1 id="结语">结语</h1>
+<p>从上边可以看出，先定义清楚问题，把主框架搭出来后，程序层次会清晰很多。我现在是很享受这种写代码方式的，层层递进。</p>
+<p>另外我一直不太清楚面试考察“智力题”的真实目的，有人说就纯粹看人的聪明度，也有说是看“面对非模式化问题时的临场反应，考察思考习惯、头脑活跃度、抗压能力”，也有说是考察计算机思维的（比如分治、时空权衡、递归）。倾向于“考察计算机思维”这个答案。</p>
+<blockquote>
+<p>【扩展问题】有兴趣的可以尝试微改代码，让程序能输出所有解法。（其实只需改一行代码）</p>
+</blockquote>
+<p>就这个问题本身，有两组解，除了我开头说的那种之外，剩下这种给我一种很“机器人”的感觉hhh：它是借助7L容器来构造1L进而构造9L（因为10-1=9嘛），然后9-7=2，构造出2，再然后……</p>
+<pre tabindex="0"><code>Found out solution:
+[(Total=10, water=10)	(Total=7, water=0)	(Total=3, water=0)]
+[(Total=10, water=3)	(Total=7, water=7)	(Total=3, water=0)]
+[(Total=10, water=3)	(Total=7, water=4)	(Total=3, water=3)]
+[(Total=10, water=6)	(Total=7, water=4)	(Total=3, water=0)]
+[(Total=10, water=6)	(Total=7, water=1)	(Total=3, water=3)]
+[(Total=10, water=9)	(Total=7, water=1)	(Total=3, water=0)]
+[(Total=10, water=9)	(Total=7, water=0)	(Total=3, water=1)]
+[(Total=10, water=2)	(Total=7, water=7)	(Total=3, water=1)]
+[(Total=10, water=2)	(Total=7, water=5)	(Total=3, water=3)]
+[(Total=10, water=5)	(Total=7, water=5)	(Total=3, water=0)]
+</code></pre><h1 id="附录-完整代码">附录-完整代码</h1>
+<p>完整的代码如下（两个文件）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// state.h
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">#pragma once
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;iostream&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;vector&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个容器的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">ContainerState</span> {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> volume;        <span style="color:#75715e">// 容器本身的固有容积
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> water_volume;  <span style="color:#75715e">// 容器当前储水的体积
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 单个结点的状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 温馨提示：这里用了assert是会导致程序直接退出的。若是线上服务，最好用可降级的报错方式。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">NodeState</span> {
+</span></span><span style="display:flex;"><span>  std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>ContainerState<span style="color:#f92672">&gt;</span> states;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">bool</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">==</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> other) <span style="color:#66d9ef">const</span> {
+</span></span><span style="display:flex;"><span>    assert(states.size() <span style="color:#f92672">==</span> other.states.size());  <span style="color:#75715e">// 限制结点的容器数量必须相等，才允许比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      assert(states[i].volume <span style="color:#f92672">==</span> other.states[i].volume);  <span style="color:#75715e">// 限制容积相等的容器对齐比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (states[i].water_volume <span style="color:#f92672">!=</span> other.states[i].water_volume) <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> true;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">bool</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">&lt;</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> other) <span style="color:#66d9ef">const</span> {
+</span></span><span style="display:flex;"><span>    assert(states.size() <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>);                     <span style="color:#75715e">// 限制非空状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    assert(states.size() <span style="color:#f92672">==</span> other.states.size());  <span style="color:#75715e">// 限制结点的容器数量必须相等，才允许比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      assert(states[i].volume <span style="color:#f92672">==</span> other.states[i].volume);  <span style="color:#75715e">// 限制容积相等的容器对齐比较
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      <span style="color:#66d9ef">if</span> (states[i].water_volume <span style="color:#f92672">!=</span> other.states[i].water_volume) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> states[i].water_volume <span style="color:#f92672">&lt;</span> other.states[i].water_volume;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">friend</span> std<span style="color:#f92672">::</span>ostream<span style="color:#f92672">&amp;</span> <span style="color:#66d9ef">operator</span><span style="color:#f92672">&lt;&lt;</span>(std<span style="color:#f92672">::</span>ostream<span style="color:#f92672">&amp;</span> output, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> node) {
+</span></span><span style="display:flex;"><span>    output <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#39;[&#39;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> node.states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>) output <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#39;\t&#39;</span>;
+</span></span><span style="display:flex;"><span>      output <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;(Total=&#34;</span> <span style="color:#f92672">&lt;&lt;</span> node.states[i].volume <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;, water=&#34;</span> <span style="color:#f92672">&lt;&lt;</span> node.states[i].water_volume <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;)&#34;</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    output <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#39;]&#39;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> output;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#75715e">// solution.cpp
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;iostream&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;map&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;queue&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;stack&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&#34;state.h&#34;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">using</span> <span style="color:#66d9ef">namespace</span> std;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">PrintSolution</span>(<span style="color:#66d9ef">const</span> map<span style="color:#f92672">&lt;</span>NodeState, NodeState<span style="color:#f92672">&gt;&amp;</span> visit_records, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>  NodeState start{.states <span style="color:#f92672">=</span> {{<span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">10</span>}, {<span style="color:#ae81ff">7</span>, <span style="color:#ae81ff">0</span>}, {<span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">0</span>}}};
+</span></span><span style="display:flex;"><span>  NodeState target{.states <span style="color:#f92672">=</span> {{<span style="color:#ae81ff">10</span>, <span style="color:#ae81ff">5</span>}, {<span style="color:#ae81ff">7</span>, <span style="color:#ae81ff">5</span>}, {<span style="color:#ae81ff">3</span>, <span style="color:#ae81ff">0</span>}}};
+</span></span><span style="display:flex;"><span>  Solve(start, target);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">Solve</span>(<span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 1、根据初始状态来初始化队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  queue<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> state_queue;
+</span></span><span style="display:flex;"><span>  state_queue.push(start);
+</span></span><span style="display:flex;"><span>  map<span style="color:#f92672">&lt;</span>NodeState, NodeState<span style="color:#f92672">&gt;</span> visit_records;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 2、出队、尝试转移到新的结点
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>state_queue.empty()) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.1、出队
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    NodeState curr_state <span style="color:#f92672">=</span> state_queue.front();
+</span></span><span style="display:flex;"><span>    state_queue.pop();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2.2、尝试转移状态
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">for</span> (size_t i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>i) {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">for</span> (size_t j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;</span> curr_state.states.size(); <span style="color:#f92672">++</span>j) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (i <span style="color:#f92672">==</span> j) <span style="color:#66d9ef">continue</span>;                                <span style="color:#75715e">// 自己不能倒给自己
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> self_water <span style="color:#f92672">=</span> curr_state.states[i].water_volume;  <span style="color:#75715e">// 自身有的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> can_accept_water <span style="color:#f92672">=</span> curr_state.states[j].volume <span style="color:#f92672">-</span> curr_state.states[j].water_volume;  <span style="color:#75715e">// 对方可接收的水量
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">int</span> poll_water <span style="color:#f92672">=</span> min(self_water, can_accept_water);                                      <span style="color:#75715e">// 本次可倒的水
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (poll_water <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        NodeState new_state <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>        new_state.states[i].water_volume <span style="color:#f92672">-=</span> poll_water;
+</span></span><span style="display:flex;"><span>        new_state.states[j].water_volume <span style="color:#f92672">+=</span> poll_water;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.3、判断是否转移到目标状态了，是则可以退出了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (new_state <span style="color:#f92672">==</span> target) {
+</span></span><span style="display:flex;"><span>          visit_records[new_state] <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>          PrintSolution(visit_records, start, target);
+</span></span><span style="display:flex;"><span>          <span style="color:#66d9ef">return</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 2.4、判断新结点是否重复，不重复才允许加入队列
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (visit_records.find(new_state) <span style="color:#f92672">==</span> visit_records.end()) {
+</span></span><span style="display:flex;"><span>          visit_records[new_state] <span style="color:#f92672">=</span> curr_state;
+</span></span><span style="display:flex;"><span>          state_queue.push(new_state);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// 3、队列出空还未找到有效路径，则判定为无解
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;No solution...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">PrintSolution</span>(<span style="color:#66d9ef">const</span> map<span style="color:#f92672">&lt;</span>NodeState, NodeState<span style="color:#f92672">&gt;&amp;</span> visit_records, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> start, <span style="color:#66d9ef">const</span> NodeState<span style="color:#f92672">&amp;</span> target) {
+</span></span><span style="display:flex;"><span>  NodeState curr_state <span style="color:#f92672">=</span> target;
+</span></span><span style="display:flex;"><span>  stack<span style="color:#f92672">&lt;</span>NodeState<span style="color:#f92672">&gt;</span> solution;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">while</span> (true) {
+</span></span><span style="display:flex;"><span>    solution.push(curr_state);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (curr_state <span style="color:#f92672">==</span> start) <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">auto</span> iter <span style="color:#f92672">=</span> visit_records.find(curr_state);
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 注：这里一定能反推回去，除非代码写错了
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (iter <span style="color:#f92672">==</span> visit_records.end()) {
+</span></span><span style="display:flex;"><span>      cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;backtrace solution fail, your code is wrong...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>      exit(<span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>);
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>      curr_state <span style="color:#f92672">=</span> iter<span style="color:#f92672">-&gt;</span>second;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;Found out solution:&#34;</span> <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">while</span> (<span style="color:#f92672">!</span>solution.empty()) {
+</span></span><span style="display:flex;"><span>    cout <span style="color:#f92672">&lt;&lt;</span> solution.top() <span style="color:#f92672">&lt;&lt;</span> endl;
+</span></span><span style="display:flex;"><span>    solution.pop();
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+    </article>
+</main>
+
+        </div></body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html><link rel="stylesheet" type="text/css" href="/css/vue.css"><body>
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@9/dist/mermaid.esm.min.mjs';
+    import mindmap from 'https://cdn.jsdelivr.net/npm/@mermaid-js/mermaid-mindmap@9/dist/mermaid-mindmap.esm.min.mjs';
+    await mermaid.registerExternalDiagrams([mindmap]);
+</script>
+<link href="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.css" rel="stylesheet">
+</link>
+<div id="content">
+<main>
+    <article>
+    <header>
+        <h1>定制hugo主题01——极简版</h1>
+    </header>
+    <aside>
+        <nav id="TableOfContents">
+  <ul>
+    <li><a href="#一行命令建主题">一行命令建主题</a>
+      <ul>
+        <li><a href="#分析theme的组成结构">分析theme的组成结构</a></li>
+        <li><a href="#极简版需实现的页面">极简版需实现的页面</a></li>
+      </ul>
+    </li>
+    <li><a href="#先让单篇文章能展示出来">先让单篇文章能展示出来</a>
+      <ul>
+        <li><a href="#定义single页面显示逻辑">定义single页面显示逻辑</a></li>
+        <li><a href="#太丑了换个样式">太丑了，换个样式</a></li>
+        <li><a href="#定制文章目录table-of-contents">定制文章目录（Table Of Contents）</a></li>
+      </ul>
+    </li>
+    <li><a href="#显示博客首页">显示博客首页</a>
+      <ul>
+        <li><a href="#初识页面变量">初识“页面变量”</a></li>
+        <li><a href="#自定义摘要">自定义摘要</a></li>
+      </ul>
+    </li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+    </aside>
+        <p>用别人写的theme很依赖对方的文档写清楚，并且自己想做点定制化的东西又有点困难。如有此类需求的话，我觉得自己定制主题起来会更简单清晰。</p>
+<p>另外希望自己在diy的过程能把hugo的架构、接口设计理清楚其中逻辑，最好还能沉淀一些common的主题定制能力/方法，这样也能方便其他想定制主题的人。</p>
+<h1 id="一行命令建主题">一行命令建主题</h1>
+<p>hugo对自定义主题已经给了支持，很方便拥有自己的主题。但new完之后发现只有<code>themes/diy/layouts/_default/baseof.html</code>有内容，其他文件都需要自己写。</p>
+<p>参考文档：https://gohugo.io/commands/hugo_new_theme/</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>➜  my-blog git:<span style="color:#f92672">(</span>master<span style="color:#f92672">)</span> ✗ hugo new theme diy
+</span></span><span style="display:flex;"><span>➜  my-blog git:<span style="color:#f92672">(</span>master<span style="color:#f92672">)</span> ✗ cd themes 
+</span></span><span style="display:flex;"><span>➜  themes git:<span style="color:#f92672">(</span>master<span style="color:#f92672">)</span> ✗ tree
+</span></span><span style="display:flex;"><span>.
+</span></span><span style="display:flex;"><span>└── diy
+</span></span><span style="display:flex;"><span>    ├── LICENSE
+</span></span><span style="display:flex;"><span>    ├── archetypes
+</span></span><span style="display:flex;"><span>    │   └── default.md
+</span></span><span style="display:flex;"><span>    ├── layouts
+</span></span><span style="display:flex;"><span>    │   ├── 404.html
+</span></span><span style="display:flex;"><span>    │   ├── _default
+</span></span><span style="display:flex;"><span>    │   │   ├── baseof.html
+</span></span><span style="display:flex;"><span>    │   │   ├── list.html
+</span></span><span style="display:flex;"><span>    │   │   └── single.html
+</span></span><span style="display:flex;"><span>    │   ├── index.html
+</span></span><span style="display:flex;"><span>    │   └── partials
+</span></span><span style="display:flex;"><span>    │       ├── footer.html
+</span></span><span style="display:flex;"><span>    │       ├── head.html
+</span></span><span style="display:flex;"><span>    │       └── header.html
+</span></span><span style="display:flex;"><span>    ├── static
+</span></span><span style="display:flex;"><span>    │   ├── css
+</span></span><span style="display:flex;"><span>    │   └── js
+</span></span><span style="display:flex;"><span>    └── theme.toml
+</span></span></code></pre></div><p>该文件的内容实际上相当于没内容……只是把header、content、footer拼起来变成一个页面而已，而这三者目前都是空白的。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span><span style="color:#75715e">&lt;!DOCTYPE html&gt;</span>
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#f92672">html</span>&gt;
+</span></span><span style="display:flex;"><span>    {{- partial &#34;head.html&#34; . -}}
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">body</span>&gt;
+</span></span><span style="display:flex;"><span>        {{- partial &#34;header.html&#34; . -}}
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">id</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;content&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>        {{- block &#34;main&#34; . }}{{- end }}
+</span></span><span style="display:flex;"><span>        &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>        {{- partial &#34;footer.html&#34; . -}}
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">body</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#f92672">html</span>&gt;
+</span></span></code></pre></div><h2 id="分析theme的组成结构">分析theme的组成结构</h2>
+<p>各个文件的含义如下。</p>
+<pre tabindex="0"><code>── diy
+    ├── LICENSE （主题源码的开源协议）
+    ├── archetypes （创建文章的“原型”，通俗理解就是文章元信息的模板）
+    │   └── default.md
+    ├── layouts
+    │   ├── 404.html （顾名思义……）
+    │   ├── _default
+    │   │   ├── baseof.html （所有页面的模板）
+    │   │   ├── list.html （列表页内容模板）
+    │   │   └── single.html （详情页模板）
+    │   ├── index.html （网站首页的模板）
+    │   └── partials
+    │       ├── footer.html （页面底部的模板）
+    │       ├── head.html （页面html的&lt;head&gt;标签模板）
+    │       └── header.html （页面头部的模板）
+    ├── static （专门用来放模板用到的静态资源）
+    │   ├── css
+    │   └── js
+    └── theme.toml
+</code></pre><div class="mermaid">
+  
+mindmap
+  root((网站页面))
+    页面分类
+      首页
+      详情页（展示特定某篇文章）
+      列表页（泛指多个同类内容的导航页面）
+      404页面
+      自定义页面（如About Me、友情链接等等）
+    页面组成结构（其实就是HTML页面结构）
+      页面元信息（head）
+      页眉（header）
+      正文内容
+      页脚（footer）
+
+</div>
+<h2 id="极简版需实现的页面">极简版需实现的页面</h2>
+<p>极简版我打算只实现这两个个页面，因为有了它们，博客就能完备浏览了。</p>
+<ul>
+<li>详情页</li>
+<li>首页</li>
+</ul>
+<h1 id="先让单篇文章能展示出来">先让单篇文章能展示出来</h1>
+<p>参考文档：https://gohugo.io/templates/single-page-templates/</p>
+<p>用命令<code>hugo new posts/demo/demo_post1.md</code>可以创建文章，文章路径为content/posts/demo/demo_post1.md，在里边写点markdown内容。然后默认地hugo可用<code>localhost:1313/demo/demo_post1</code>来访问该文章，但发现浏览器显示<code>Page Not Found</code>……</p>
+<p><a href="https://imgse.com/i/pS0OnGq"><img src="https://s1.ax1x.com/2023/02/01/pS0OnGq.md.png" alt="pS0OnGq.md.png"></a></p>
+<h2 id="定义single页面显示逻辑">定义single页面显示逻辑</h2>
+<p>在<code>diy/layouts/_default/single.html</code>里填入以下代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>{{ define &#34;main&#34; }}
+</span></span><span style="display:flex;"><span>&lt;<span style="color:#f92672">main</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">article</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">header</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">h1</span>&gt;{{ .Title }}&lt;/<span style="color:#f92672">h1</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">header</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">aside</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ .TableOfContents }}
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">aside</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ .Content }}
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">article</span>&gt;
+</span></span><span style="display:flex;"><span>&lt;/<span style="color:#f92672">main</span>&gt;
+</span></span><span style="display:flex;"><span>{{ end }}
+</span></span></code></pre></div><p>这段代码是Go Template的语法，定义了一个叫做main的block（被上述的baseof.html里引用，可以回头去看下）。页面从上到下依次是标题、文章目录、文章内容。</p>
+<p>重跑<code>hugo server -D</code>，再访问文章链接，发现还是<code>Page Not Found</code>……</p>
+<p>这其实是因为没告诉hugo要使用diy主题，在博客根目录的<code>config.toml</code>里指定一下。这次，刷新一下页面就能看到文章内容了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-toml" data-lang="toml"><span style="display:flex;"><span><span style="color:#a6e22e">baseURL</span> = <span style="color:#e6db74">&#39;http://example.org/&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">languageCode</span> = <span style="color:#e6db74">&#39;en-us&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">title</span> = <span style="color:#e6db74">&#39;My New Hugo Site&#39;</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">theme</span> = <span style="color:#e6db74">&#39;diy&#39;</span>
+</span></span></code></pre></div><h2 id="太丑了换个样式">太丑了，换个样式</h2>
+<p>目前都是浏览器默认的样式，丑得无法接受。我试了一圈，发现<a href="https://theme.typora.io/theme/Vue/">typora里的vue主题</a>深得本人喜爱。但如何引入这个样式呢？</p>
+<p>首先下载vue主题的样式文件（此处为vue.css和vue目录，后者是一些字体样式），放到静态文件css目录下（<code>diy/static/css/</code>），然后需要在页面里引用这些css。</p>
+<p>有过H5开发经验的会知道，css一般是放在<code>&lt;header&gt;</code>里头引用的，回头看baseof.html，发现它的<code>&lt;header&gt;</code>是引用了header.html（完整路径为<code>diy/layouts/partials/header.html</code>），所以我们在header.html里引用css即可：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>&lt;<span style="color:#f92672">link</span> <span style="color:#a6e22e">rel</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;stylesheet&#34;</span> <span style="color:#a6e22e">type</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;text/css&#34;</span> <span style="color:#a6e22e">href</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;/css/vue.css&#34;</span>&gt;
+</span></span></code></pre></div><p>至于这里为啥href路径写的是<code>&quot;/css/vue.css&quot;</code>而非完整的路径，涉及到hugo的静态文件寻址规则，现阶段先接受即可，没必要深究。</p>
+<h2 id="定制文章目录table-of-contents">定制文章目录（Table Of Contents）</h2>
+<p>仔细观察的话，会发现文章目录是从H2开始的，H1怎么就不见了呢？（注意，需要你用来测试的markdown文章里有H1、H2、H3才能看出效果）</p>
+<p>阅读hugo文档，找到了配置TOC的方法，在博客根目录的<code>config.toml</code>里加上这一段即可。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-toml" data-lang="toml"><span style="display:flex;"><span>[<span style="color:#a6e22e">markup</span>]
+</span></span><span style="display:flex;"><span>  [<span style="color:#a6e22e">markup</span>.<span style="color:#a6e22e">tableOfContents</span>]
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">endLevel</span> = <span style="color:#ae81ff">3</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">ordered</span> = <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">startLevel</span> = <span style="color:#ae81ff">1</span>
+</span></span></code></pre></div><p>参考文档：https://gohugo.io/getting-started/configuration-markup/#table-of-contents</p>
+<p>每个字段的含义都由它的名称解释得很清楚了，我设置了<code>startLevel = 1</code>，所以H1也就能显示出来了！</p>
+<p>至于为啥没配置之前H1无法显示出来，目测是startLevel默认值为2。</p>
+<p>可以看出这里是全局配置，那么有个遗留问题：如果部分文章不想从H1开始，可以做到吗？（后边再看看）</p>
+<h1 id="显示博客首页">显示博客首页</h1>
+<p>参考文档：https://gohugo.io/templates/homepage/</p>
+<p>在<code>diy/layouts/index.html</code>里填入以下代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>{{ define &#34;main&#34; }}
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">main</span> <span style="color:#a6e22e">aria-role</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;main&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">header</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;homepage-header&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">h1</span>&gt;{{.Title}}&lt;/<span style="color:#f92672">h1</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ with .Params.subtitle }}
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">span</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;subtitle&#34;</span>&gt;{{.}}&lt;/<span style="color:#f92672">span</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ end }}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">header</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;homepage-content&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">&lt;!-- Note that the content for index.html, as a sort of list page, will pull from content/_index.md --&gt;</span>
+</span></span><span style="display:flex;"><span>        {{.Content}}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ range first 10 .Site.RegularPages }}
+</span></span><span style="display:flex;"><span>            {{ .Render &#34;summary&#34;}}
+</span></span><span style="display:flex;"><span>        {{ end }}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">main</span>&gt;
+</span></span><span style="display:flex;"><span>{{ end }}
+</span></span></code></pre></div><p>但我发现渲染不出具体内容，查看<code>.Render</code>函数的文档：https://gohugo.io/functions/render/ ，发现它是这么说的：</p>
+<blockquote>
+<p>This example could render a piece of content using the content view located at /layouts/_default/summary.html</p>
+</blockquote>
+<p>也就是说，需要在_default下建多一个summary.html才能渲染出来……咱们极简版就别折腾了，另寻他路。</p>
+<h2 id="初识页面变量">初识“页面变量”</h2>
+<p>对于极简版首页，这里应该是一个博客列表，每篇显示title、摘要，然后点击title可以跳到博客详情页。</p>
+<p>这几个信息都可以通过“Page Variable”来获取到，顾名思义很容易理解啦，就是hugo内置了一些变量来引用页面的各种信息，直接看实例吧：</p>
+<ul>
+<li>文章title：.Title</li>
+<li>文章摘要：.Summary</li>
+<li>文章（相对）链接：.RelPermalink</li>
+</ul>
+<p>参考文档：https://gohugo.io/variables/page/</p>
+<h2 id="自定义摘要">自定义摘要</h2>
+<p>不过实际渲染效果，<code>.Summary</code>太多内容了（对于较长文章来说），再看看Summary的文档：https://gohugo.io/content-management/summaries/</p>
+<p>有三种摘要方式（以下按优先级排序）：</p>
+<ol>
+<li>半自动模式，在文章里摘要、剩余部分之间的位置插入符号 &lt;!&ndash;more&ndash;&gt;</li>
+<li>全手工模式，在文章的元信息部分（即Front Matter）里写summary内容，适合摘要内容跟文章开头不一样的情况。</li>
+<li>全自动模式，hugo按照配置项<code>summaryLength</code>来截取文章开头相应数量的单词作为摘要</li>
+</ol>
+<p>其中1和2都可以人工按需指定，没啥问题。</p>
+<p>剩下“全自动模式”，默认值是70个词，亲测分割出来有的会多很多字……无语了。
+所以我加了一个函数来截断多余的部分，即下边代码里的<code>{{ .Summary | truncate 70 }}</code>，其中truncate是hugo提供的内置函数，然后<code>|</code>符号是hugo pipe功能，其实就跟Linux命令行的管道功能一样。这样truncate之后发现就正常了。</p>
+<p>综上，首页的渲染模板代码可以这样子写：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-html" data-lang="html"><span style="display:flex;"><span>{{ define &#34;main&#34; }}
+</span></span><span style="display:flex;"><span>    &lt;<span style="color:#f92672">main</span> <span style="color:#a6e22e">aria-role</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;main&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">header</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;homepage-header&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">h1</span>&gt;{{.Title}}&lt;/<span style="color:#f92672">h1</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ with .Params.subtitle }}
+</span></span><span style="display:flex;"><span>        &lt;<span style="color:#f92672">span</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;subtitle&#34;</span>&gt;{{.}}&lt;/<span style="color:#f92672">span</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ end }}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">header</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">div</span> <span style="color:#a6e22e">class</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;homepage-content&#34;</span>&gt;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">&lt;!-- Note that the content for index.html, as a sort of list page, will pull from content/_index.md --&gt;</span>
+</span></span><span style="display:flex;"><span>        {{.Content}}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>      &lt;<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ range .Site.RegularPages }}
+</span></span><span style="display:flex;"><span>          &lt;<span style="color:#f92672">article</span>&gt;
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">&lt;!-- this &lt;div&gt; includes the title summary --&gt;</span>
+</span></span><span style="display:flex;"><span>            &lt;<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>              &lt;<span style="color:#f92672">h2</span>&gt;&lt;<span style="color:#f92672">a</span> <span style="color:#a6e22e">href</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;{{ .RelPermalink }}&#34;</span>&gt;{{ .Title }}&lt;/<span style="color:#f92672">a</span>&gt;&lt;/<span style="color:#f92672">h2</span>&gt;
+</span></span><span style="display:flex;"><span>              {{ .Summary | truncate 70 }}
+</span></span><span style="display:flex;"><span>            &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>            &lt;<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>              &lt;<span style="color:#f92672">a</span> <span style="color:#a6e22e">href</span><span style="color:#f92672">=</span><span style="color:#e6db74">&#34;{{ .RelPermalink }}&#34;</span>&gt;Read More…&lt;/<span style="color:#f92672">a</span>&gt;
+</span></span><span style="display:flex;"><span>            &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>          &lt;/<span style="color:#f92672">article</span>&gt;
+</span></span><span style="display:flex;"><span>        {{ end }}
+</span></span><span style="display:flex;"><span>      &lt;/<span style="color:#f92672">div</span>&gt;
+</span></span><span style="display:flex;"><span>    &lt;/<span style="color:#f92672">main</span>&gt;
+</span></span><span style="display:flex;"><span>{{ end }}
+</span></span></code></pre></div><p>效果如下：</p>
+<p><a href="https://imgse.com/i/pS0XojK"><img src="https://s1.ax1x.com/2023/02/01/pS0XojK.md.png" alt="pS0XojK.md.png"></a></p>
+<h1 id="总结">总结</h1>
+<p>至此，极简版博客就搭建完成了，至少能用起来了，但其实存在很多不完善的地方。</p>
+<p>后续会逐步完善、美化，敬请期待后续文章～</p>
+
+    </article>
+</main>
+
+        </div></body>
+</html>
